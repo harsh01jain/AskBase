@@ -1,0 +1,625 @@
+PROJECT REPORT
+
+QueryLocal
+
+Fully Local Text-to-SQL Web Application
+
+Natural-language querying over PostgreSQL — where the data, the query, and the schema never leave the machine.
+
+Submitted By
+
+Harsh Jain
+
+Programme
+
+MSc Data Science — NMIMS
+
+Year
+
+2025
+
+Domain
+
+Data Science / NLP / Full-Stack
+
+Type
+
+Web Application (Industry Grade)
+
+1. Project Overview
+
+1.1 Project Name & Type
+
+QueryLocal is a fully local, privacy-first Text-to-SQL web application that enables analysts to query a PostgreSQL database using plain English. The application is deployed as a full-stack web application accessible via a browser on a private local network — zero data, schema, or query results ever leave the machine.
+
+Web Application
+
+Mobile Application
+
+Desktop Application
+
+✔  Primary delivery — runs in any modern browser on the local network (localhost or private IP). Next.js frontend + FastAPI backend.
+
+✖  Not the primary target. A Progressive Web App (PWA) wrapper is listed as a future scaling path for field analysts.
+
+✖  Not planned. A Streamlit desktop-local prototype was the original concept, but the design has moved directly to the full web stack described in this report.
+
+1.2 Problem Statement
+
+Business analysts and data teams spend significant time waiting for data engineering support to run SQL queries — even for simple exploratory questions. Cloud-based natural-language-to-SQL solutions (OpenAI, Google BigQuery natural language mode) send proprietary schema and potentially sensitive data to third-party servers, creating unacceptable privacy and compliance risks for enterprises handling confidential data.
+
+1.3 Proposed Solution
+
+QueryLocal closes this gap by providing an industry-grade web application where:
+
+•  All LLM inference runs locally via Ollama (Qwen2.5-Coder model) on localhost:11434 — no API key, no external call.
+
+•  Schema embeddings are computed on-device by sentence-transformers; the vector index is stored in ChromaDB on local disk.
+
+•  SQL is validated by sqlglot before any execution — only SELECT statements pass.
+
+•  PostgreSQL is protected by a dedicated read-only role, statement timeouts, and row limits.
+
+•  A self-correction loop re-submits the exact Postgres error message to the model for up to 3 automatic retry attempts.
+
+•  The full-stack web UI (Next.js + TypeScript + Tailwind + FastAPI) delivers an industry-grade analyst experience with a SQL explainer, schema panel, conversational context, and smart follow-up suggestions.
+
+1.4 Why a Web Application, Not a Desktop Application
+
+An early Streamlit desktop-local prototype was the initial concept, but the design was moved directly to a full-stack web application, for the following reasons:
+
+•  Single deployment, many users — the entire analyst team accesses one running instance over the private network, instead of every analyst installing Python, Ollama, and dependencies on their own laptop.
+
+•  Centralised hardware cost — a desktop app installed on every laptop means every laptop needs a capable GPU; a web app centralises the GPU on one server, and analysts connect from ordinary machines.
+
+•  Easier updates — bug fixes, model upgrades, and prompt changes are deployed once on the server; a desktop app would require every analyst to reinstall or update individually.
+
+•  Familiar interface — a browser tab is the natural interface for a query tool used throughout the workday, and supports rich UI (syntax highlighting, streaming, follow-up chips) that a desktop app would need to rebuild from scratch.
+
+•  No privacy trade-off — a web app still fully preserves the privacy guarantee, because it is hosted on the client’s own machine or private network — not the public internet. See Section 2.3 for the access model.
+
+2. System Architecture
+
+2.1 Application Type — Full-Stack Web Application
+
+QueryLocal is structured as a two-tier web application with a clear separation between frontend and backend, enabling team-scale deployment while maintaining full privacy compliance.
+
+Tier
+
+Technology
+
+Responsibility
+
+Frontend
+
+Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui
+
+Browser-rendered React application. Query input, SQL terminal with syntax highlighting, schema context panel, results table, follow-up suggestions, dark/light mode toggle. Served from localhost:3000 (or private network IP).
+
+Backend API
+
+FastAPI + Python 3.11
+
+REST API exposing /query, /schema, /history endpoints. Orchestrates schema retrieval, LLM prompt construction, SQL validation, and database execution. Runs at localhost:8000.
+
+LLM Serving
+
+Ollama (Qwen2.5-Coder)
+
+Local LLM server on localhost:11434 with OpenAI-compatible REST API. Handles all text-to-SQL inference completely offline after initial model download.
+
+Embeddings
+
+sentence-transformers + ChromaDB
+
+One-time schema indexing using all-MiniLM-L6-v2. Embeddings stored on local disk. Retrieved at query time to supply only relevant table context to the LLM prompt.
+
+Database
+
+PostgreSQL + read-only role
+
+All queries run under nl2sql_reader with SELECT-only grants, 15 s statement timeout, and a 1000-row LIMIT injection. Hard enforcement layer independent of application-level validation.
+
+2.2 Request Lifecycle
+
+A single analyst question flows through five deterministic stages:
+
+•  ① Schema Retrieval — the question is embedded and the top-k relevant table descriptions are pulled from ChromaDB.
+
+•  ② SQL Generation — Qwen2.5-Coder receives a structured prompt containing the schema context, the question, and any prior error context, and returns a SQL string.
+
+•  ③ Validation — sqlglot parses the SQL; non-SELECT statements, DDL, and malformed queries are rejected without touching the database.
+
+•  ④ Execution — the validated query runs under nl2sql_reader with a 15 s server-side timeout and a 1000-row LIMIT injected if absent.
+
+•  ⑤ Self-Correction Loop — on validation or execution error, the exact error message is appended to the prompt and the model regenerates SQL (maximum 3 attempts). On final failure, the user sees the last SQL and error for manual editing.
+
+🔒 Privacy Guarantee
+
+Nothing — data, schema, results, or queries — ever crosses the machine boundary. All five stages execute entirely on-premises, on Windows, with no outbound network traffic required during operation.
+
+2.3 Deployment — How Analysts Access the System
+
+QueryLocal is never exposed on the public internet. It is deployed inside the client’s own network — either an on-premises server/workstation or a GPU instance inside the client’s private cloud (VPC) — and reached the same way any other internal company tool is reached, such as an intranet portal.
+
+•  No public URL — the running instance sits at a private network address (e.g. http://192.168.1.50:3000, or an internal DNS name like http://querylocal.internal) reachable only from devices on that network or connected via the company VPN.
+
+•  Analyst access — an analyst opens a browser and navigates to the internal address — no installation, no API keys, no account signup for the underlying model.
+
+•  Outside access — someone outside the company network, or on the open internet, cannot reach the address at all; it simply does not resolve.
+
+•  Public information vs. private product — a public marketing/documentation website (see Section 10) explains the product and setup steps, but is entirely separate from the running application and never touches client data.
+
+3. Comparative Analysis with Existing Solutions
+
+QueryLocal occupies a distinct position in the Text-to-SQL landscape: the only fully on-premises solution with an industry-grade web UI, semantic schema retrieval, and an error-correction loop — at zero inference cost.
+
+Solution
+
+On-Prem
+
+Cost
+
+Privacy
+
+UI Type
+
+SQL Quality / Notes
+
+QueryLocal (This Project)
+
+✔ Full
+
+✔ Free
+
+✔ 100%
+
+✔ Web App
+
+✔ Schema RAG + retry loop
+
+OpenAI GPT-4 (SQL mode)
+
+✖ Cloud
+
+✖ Per call
+
+✖ None
+
+API only
+
+✔ Very accurate
+
+Google BigQuery NL
+
+✖ Cloud
+
+✖ Per query
+
+✖ None
+
+GCP Console
+
+✔ High (BigQuery-only)
+
+Langchain + GPT
+
+✖ Cloud
+
+✖ Per call
+
+✖ None
+
+Custom build
+
+△ Varies by model
+
+DBeaver AI Assistant
+
+△ Partial
+
+△ Paid
+
+△ Partial
+
+Desktop App
+
+△ Basic, no RAG
+
+vanna.ai (self-hosted)
+
+✔ Local option
+
+✔ Free
+
+✔ High
+
+Notebook/API
+
+△ No web UI, fewer guardrails
+
+SQLCoder (HuggingFace)
+
+✔ Local
+
+✔ Free
+
+✔ 100%
+
+API only
+
+△ No UI, no retry loop
+
+3.1 Key Differentiators
+
+•  Privacy-complete by design — no configuration required. Unlike vanna.ai or LangChain which require explicit opt-out of cloud APIs, QueryLocal has no cloud path whatsoever.
+
+•  Semantic schema retrieval (RAG) — scales to databases with 100+ tables without degrading prompt quality, unlike tools that naively inject the full schema.
+
+•  Self-correction loop — the automatic error-feedback cycle (up to 3 attempts) meaningfully closes the quality gap between a 7B local model and a cloud-hosted GPT-4, with error messages acting as extremely informative context.
+
+•  Industry-grade web UI — Next.js frontend with SQL explainer, table highlighting, conversational context, and smart follow-up suggestions. No other self-hosted local solution ships a comparable web interface.
+
+•  Defense-in-depth security — sqlglot validation + read-only Postgres role + statement timeout form three independent layers that prevent any data modification even if the LLM misbehaves.
+
+•  Windows-native — unlike vLLM or most LangChain setups which require Linux/WSL2, QueryLocal runs natively on Windows 10/11 via the Ollama Windows installer.
+
+4. Non-Functional Requirements (NFRs)
+
+Non-functional requirements define the quality attributes and operational constraints of the system. QueryLocal addresses seven NFRs; the three mandatory minimum are marked as Primary.
+
+NFR-01  Privacy & Data Security   [PRIMARY]
+
+All data, query results, schema definitions, and model inference must remain entirely on the local machine in the default (local) mode. No telemetry, no cloud API call, and no schema leakage is permissible under any operating condition in this mode. An explicit, clearly-labelled opt-in Cloud API mode is available for users who choose convenience over this guarantee \u2014 see Section 6.5.
+
+▸  LLM inference: Ollama serves Qwen2.5-Coder entirely on localhost:11434 — designed for zero outbound TCP connections during inference; to be confirmed with a network trace (e.g. Wireshark) once implemented.
+
+▸  Embeddings: sentence-transformers downloads models once on first run; all subsequent computations are CPU-local (< 50 ms per query).
+
+▸  Vector store: ChromaDB PersistentClient writes to ./schema_index on local disk; no server, no network socket.
+
+▸  Database: application connects exclusively as nl2sql_reader (SELECT-only, no schema-write grants). Even a DROP TABLE injected into the LLM output is refused at the Postgres level.
+
+▸  Telemetry opt-out: ChromaDB anonymized_telemetry=False is set at client instantiation; Ollama has no telemetry by default.
+
+Traceability: Traceability: ISO 27001 — A.13 (Communications security), A.14 (System acquisition / development / maintenance). GDPR Article 25 (Data protection by design).
+
+NFR-02  Performance & Response Time   [PRIMARY]
+
+The end-to-end latency from question submission to results display must remain within acceptable bounds for interactive analyst use, even on consumer-grade hardware.
+
+▸  Target: < 10 seconds end-to-end on hardware with a CUDA-capable GPU (RTX 4070 / 4080) running the 7B model.
+
+▸  Projected (based on published Qwen2.5-Coder / Ollama benchmarks, not yet measured on this project): 7B model on RTX 4080 — roughly 4–5 s first attempt; 14B model — roughly 7–9 s. To be validated once the pipeline is implemented.
+
+▸  Schema retrieval: ChromaDB vector lookup for top-5 tables < 30 ms (CPU, all-MiniLM-L6-v2).
+
+▸  SQL validation: sqlglot parse + SELECT check < 5 ms.
+
+▸  Self-correction penalty: each retry adds ~4–8 s; the loop is capped at 3 attempts to bound worst-case latency.
+
+▸  Streaming: FastAPI streams the LLM token output to the Next.js frontend via Server-Sent Events (SSE), so the analyst sees the SQL forming in real time rather than waiting for the full response.
+
+▸  Fallback: CPU-only execution is supported but latency rises to 30–90 s for 7B models; advised for schema-lookup testing only.
+
+Traceability: Measurement: end-to-end timing is logged per request in the audit table (question_id, attempt_number, latency_ms) for regression tracking across model or prompt changes.
+
+NFR-03  Reliability & Fault Tolerance   [PRIMARY]
+
+The system must degrade gracefully on LLM errors, database errors, and malformed SQL — never crashing silently or leaving the analyst without actionable feedback.
+
+▸  Self-correction loop: up to 3 automatic regeneration attempts; the exact Postgres error message is included verbatim in the re-prompt.
+
+▸  Final failure handling: on exhausting all attempts, the frontend displays the last generated SQL and the error message with an editable SQL field — the analyst can correct and re-run without restarting.
+
+▸  Validation gate: sqlglot rejects any query that is not a single SELECT statement before it ever reaches Postgres, preventing database state changes even on model hallucinations.
+
+▸  Timeout enforcement: nl2sql_reader carries a 15 s statement_timeout and 30 s idle_in_transaction_session_timeout at the role level — these survive application restarts.
+
+▸  Ollama health check: the FastAPI startup event pings localhost:11434/api/tags; if Ollama is not running the API returns a 503 with a human-readable "Model server unavailable" error before accepting any query.
+
+Traceability: Target availability: 99.5% uptime during analyst working hours (offline infrastructure failures excluded). No unhandled 500 errors reach the analyst UI — all exceptions are caught at the FastAPI middleware layer and surfaced as structured error responses.
+
+NFR-04  Maintainability & Extensibility   [SECONDARY]
+
+The system must support schema changes, model upgrades, and prompt modifications without requiring code changes or redeployment of the frontend.
+
+▸  Schema re-indexing: running python index_schema.py refreshes the ChromaDB vector store; no application restart required.
+
+▸  Model hot-swap: the active Ollama model is read from a config file (config.yaml) at request time; changing from qwen2.5-coder:7b to :32b requires editing one line.
+
+▸  Prompt versioning: system prompts are stored in /prompts/ as plain-text templates, not hardcoded strings — enabling A/B testing and rollback without touching Python files.
+
+▸  Gold-set regression suite: a JSON file of (question, expected_sql) pairs is executed automatically on any config change to measure accuracy delta before production.
+
+NFR-05  Usability   [SECONDARY]
+
+The web application must be usable by non-technical business analysts with no SQL knowledge, with discoverability of schema and follow-up queries built directly into the interface.
+
+▸  SQL Explainer: every generated query is accompanied by a collapsible plain-English description of what the SQL does and why.
+
+▸  Table Highlighting: the schema context panel visually accents tables referenced in the current query, linking code to data model.
+
+▸  Smart Follow-up Suggestions: four contextual next-question chips are generated after each result set.
+
+▸  Conversational Context: prior question-SQL pairs are retained in session state, enabling pronouns and references ("that query", "the same period") in follow-up questions.
+
+▸  Accessibility: keyboard navigation, sufficient contrast ratios (WCAG AA), and responsive layout down to 1024 px wide.
+
+NFR-06  Scalability   [SECONDARY]
+
+The architecture must support a clear upgrade path from single-analyst local use to a multi-analyst team deployment without re-architecting the core pipeline.
+
+▸  Horizontal scale: the FastAPI backend is stateless (session context stored in Redis or client-side) and can be containerised and load-balanced.
+
+▸  Model scale: swapping Ollama → vLLM under WSL2 unlocks concurrent inference for multi-user loads with no change to the API contract.
+
+▸  Schema scale: the RAG-based schema retrieval design means the system handles 100+ table databases with no prompt degradation — only the top-k relevant tables are included.
+
+▸  Auth layer: Next.js middleware supports JWT-based route protection; adding an authentication provider (Keycloak, Azure AD) requires no backend change.
+
+NFR-07  Portability   [SECONDARY]
+
+The system must run on Windows 10/11 without requiring WSL2, Docker, or CUDA (though GPU acceleration is recommended).
+
+▸  Ollama ships a native Windows installer and bundles CUDA runtime — no separate CUDA toolkit installation is needed.
+
+▸  Python stack (FastAPI, sentence-transformers, sqlglot, chromadb) is fully cross-platform.
+
+▸  Next.js frontend is a standard Node.js application; Node 18+ is available natively on Windows.
+
+▸  CPU fallback: all components operate without a GPU — latency increases but no functionality is lost.
+
+▸  Offline operation: after the one-time model and embedding download, the system operates with no internet connection indefinitely.
+
+Traceability: Future: Docker Compose packaging is listed in the roadmap to enable one-command deployment on any OS.
+
+5. Business Value
+
+QueryLocal creates measurable value across three dimensions: operational efficiency for analyst teams, risk reduction for data compliance teams, and long-term infrastructure cost savings for finance and IT.
+
+5.1 Operational Efficiency
+
+•  Self-service analytics — Business analysts answer ad-hoc data questions independently, eliminating the data engineering queue for exploratory queries. Conservative estimate: 3–5 queries per analyst per day that previously required a ticket become instant.
+
+•  Reduced time-to-insight — A question that previously took hours (raise ticket → engineer schedules → write SQL → share CSV) now resolves in under 10 seconds.
+
+•  Analyst upskilling — The SQL explainer and table highlighting turn every query into a learning moment: analysts build SQL literacy passively through use, reducing long-term dependence on the tool.
+
+•  No context-switching — Results are shown in the same browser tab with inline charts; analysts stay in flow rather than switching to BI tools or emailing data engineers.
+
+5.2 Risk Reduction & Compliance
+
+•  Data residency compliance — For regulated industries (BFSI, healthcare, government), the inability for data to leave the machine is not a feature preference but a compliance requirement. QueryLocal makes natural-language analytics compatible with data-residency regulations (DPDP Act 2023 in India, GDPR in Europe) without any configuration.
+
+•  Zero exfiltration surface — Every cloud-based NL-to-SQL tool creates a potential data exfiltration path via the API call. QueryLocal eliminates this surface entirely.
+
+•  Audit trail — Every question, generated SQL, retry history, and execution result is logged to a local audit table — satisfying internal audit requirements without external tooling.
+
+•  Principle of least privilege — The nl2sql_reader Postgres role cannot write, create, drop, or alter any object. A compromised application layer still cannot damage the database.
+
+5.3 Cost Analysis
+
+Option
+
+Approx. Cost
+
+Notes
+
+Cloud NL-to-SQL (OpenAI API)
+
+₹12–60 / 1,000 queries (GPT-4o)
+
+Cost scales linearly with usage; schema tokens billed each call; data residency not guaranteed.
+
+QueryLocal (This Project)
+
+₹0 / query (post hardware)
+
+One-time GPU cost amortised over years of use; inference is free once model is downloaded.
+
+DBeaver AI / Enterprise BI
+
+₹4,000–40,000 / seat / year
+
+Licence fee plus cloud dependency; on-prem variants are complex to deploy.
+
+In-house data engineering
+
+₹800–2,500 per query (eng. time)
+
+Hidden cost of analyst waiting time plus senior engineer bandwidth for simple queries.
+
+5.4 Strategic Value — Portfolio & Placement
+
+Beyond direct business impact, QueryLocal demonstrates three engineering competencies that are directly evaluated in Data Science and ML Engineering interviews:
+
+•  End-to-end system design — the project spans NLP (text-to-SQL), information retrieval (RAG over schema), software engineering (full-stack web app), and database security (read-only role, validation). This breadth is rare in student portfolios.
+
+•  Privacy-by-design thinking — the ability to architect a system that is compliant by construction (not by policy) is a competency actively sought in enterprise DS roles, especially in BFSI and healthcare sectors.
+
+•  Production-readiness orientation — self-correction loops, validation layers, retry caps, audit logging, and evaluation gold sets demonstrate awareness of what separates a research demo from a production ML system — a critical gap most placements test for.
+
+💡 Key Insight
+
+QueryLocal is not positioned as a global competitor to OpenAI or BigQuery. Its genuine market niche is Indian enterprise analytics teams handling sensitive data — BFSI, healthcare, government — where data residency is non-negotiable and cloud NL-SQL is simply not an option. The right comparison is not "as accurate as GPT-4" but "the only on-premises NL-SQL with a production web UI that a compliance officer would approve."
+
+6. Technology Stack & Implementation
+
+6.1 Frontend — Next.js 14 Web Application
+
+The analyst-facing web application is planned to be built with Next.js 14 (App Router), TypeScript, Tailwind CSS, and shadcn/ui components. This is a deliberate choice over the originally considered Streamlit desktop-local prototype, for the following reasons:
+
+•  Multi-page routing — Next.js App Router provides clean URL-based navigation for Query, Schema Browser, History, and Settings views.
+
+•  Type safety — TypeScript catches interface mismatches between frontend components and FastAPI response schemas at compile time.
+
+•  Design system — Tailwind + shadcn/ui delivers consistent, accessible UI components (command palette, data table, code block) without building from scratch.
+
+•  Dark/Light mode — System-level preference detection plus a manual toggle, stored in localStorage.
+
+•  Streaming support — The query view uses EventSource (SSE) to stream LLM-generated SQL token by token, giving the analyst immediate visual feedback.
+
+6.2 Backend — FastAPI
+
+The Python backend exposes a REST + SSE API consumed by the Next.js frontend. Key endpoints:
+
+•  POST /query — accepts a natural-language question; runs the full retrieval → generation → validation → execution → correction pipeline; returns structured JSON (sql, explanation, results, attempt_count, latency_ms).
+
+•  GET /schema — returns the full schema inventory for the Schema Browser view.
+
+•  GET /history — returns paginated query history from the audit log.
+
+•  POST /reindex — triggers a schema re-embedding run (for the Settings view).
+
+•  GET /health — Ollama + Postgres connectivity check; surfaced in the sidebar connection indicator.
+
+6.3 Model Selection Guide
+
+Hardware
+
+Model
+
+Notes
+
+≥ 24 GB VRAM (RTX 3090/4090/5090)
+
+qwen2.5-coder:32b (Q4)
+
+Best local SQL; handles complex CTEs, window functions, multi-join queries reliably.
+
+12–16 GB VRAM (RTX 4070/4080)
+
+qwen2.5-coder:14b (Q4)
+
+Strong middle ground; suitable for production analyst use.
+
+8 GB VRAM or CPU-only
+
+qwen2.5-coder:7b (Q4)
+
+Usable with schema RAG + retry loop; expect more corrections on complex queries.
+
+Very constrained / CPU only
+
+sqlcoder:7b
+
+SQL-specialised fine-tune; narrower capability but faster on CPU.
+
+6.4 Containerization Strategy — Docker
+
+QueryLocal is packaged as a set of Docker containers, orchestrated with Docker Compose, so the full stack starts with a single command on any client machine rather than a manual, error-prone install of Node.js, Python, Ollama, and Postgres.
+
+•  Services — frontend (Next.js), backend (FastAPI), ollama (LLM serving), postgres (database), each isolated with only the dependencies it needs.
+
+•  Networking — containers communicate over a private Docker network by service name (e.g. the frontend calls http://backend:8000); only the frontend port is exposed to the client’s network.
+
+•  GPU passthrough — the ollama container is granted GPU access (NVIDIA Container Toolkit, --gpus all / runtime: nvidia) so LLM inference meets the NFR-02 latency targets; all other containers run CPU-only.
+
+•  Persistence — the Ollama model cache and Postgres data are mounted as named volumes, so containers can be rebuilt or updated without re-downloading models or losing data.
+
+•  Why Docker — identical containers run in development, on-prem, and in a client’s private cloud VPC, eliminating “works on my machine” issues and making handover to a client’s IT team a copy-and-run operation instead of a manual setup.
+
+6.5 LLM Provider Flexibility — Local by Default, Cloud API as Opt-In
+
+QueryLocal is designed to support more than one way of running the underlying model, so the choice of privacy vs. convenience is made explicitly by the user — not assumed by the system.
+
+•  Default — Local (Ollama) — the system ships configured to use local Ollama, auto-pulling the selected Qwen2.5-Coder model on first run (see Section 6.4). No data leaves the machine. This remains the recommended mode for any privacy- or compliance-sensitive deployment.
+
+•  Model switching — from the Settings view, a user can switch the active local model (7B / 14B / 32B) to trade off speed vs. accuracy for their hardware — a one-line config change (Section 6.4/NFR-04), no redeployment needed.
+
+•  Opt-in — Cloud API — a user who prefers not to run a local model, or lacks a GPU, can opt in to a cloud provider (e.g. OpenAI, Anthropic) by supplying their own API key. The backend’s LLM-provider interface is abstracted, so swapping providers is a configuration choice, not a code change.
+
+Important trade-off: Cloud API mode sends the question and relevant schema context to that third-party provider — it does not carry the “zero data leaves the machine” guarantee described elsewhere in this report. QueryLocal makes this explicit in the UI (a persistent “Cloud mode active — data leaves this network” indicator whenever a cloud provider is selected), so the choice is informed rather than silent. NFR-01 (Privacy & Security) applies in full only in local mode.
+
+•  Why offer both — regulated/compliance-sensitive users keep local mode as the default and recommended path; evaluators, trial users, or teams without local GPU hardware get a lower-friction way to try the product without the privacy guarantee being silently assumed on their behalf.
+
+7. Evaluation Plan
+
+Before trusting the system in any analyst workflow, a structured evaluation is run against a gold set of human-verified question → SQL pairs.
+
+•  Gold Set: 30–50 question/SQL pairs across easy (single table, simple filter), medium (joins, GROUP BY), and hard (window functions, CTEs, date arithmetic) query types.
+
+•  Execution Accuracy: gold SQL and generated SQL are both executed; result sets are compared as sorted DataFrames — not as SQL strings, which can be equivalent in many surface forms.
+
+•  Retry Rate: tracks how often attempt 1, 2, or 3 succeeds — a proxy for "does this hardware tier need a bigger model?".
+
+•  Latency Logging: median and P95 end-to-end time per attempt logged per hardware tier. Target: < 10 s on GPU, < 90 s on CPU.
+
+•  Regression Gate: the gold set is automatically re-run whenever the model, system prompt, or schema descriptions change. A > 5% accuracy drop blocks the change.
+
+Common failure modes to monitor: wrong JOIN conditions, missing WHERE filters, aggregation on the wrong column, and — most importantly — queries that execute without error but answer a subtly different question than the one asked. The last category is why generated SQL is always shown to the analyst.
+
+8. Scaling Roadmap
+
+Current Status: The project is at the planning stage. The scope, architecture, and phase breakdown below are finalised, but implementation has not yet begun.
+
+Phase 1 — Planned (MVP)
+
+•  Local Ollama + Qwen2.5-Coder inference
+
+•  sentence-transformers + ChromaDB schema RAG
+
+•  sqlglot validation + read-only Postgres role + retry loop
+
+•  Streamlit proof-of-concept UI
+
+Phase 2 — Planned (Industry-Grade Web App)
+
+•  Next.js 14 + TypeScript + Tailwind frontend replacing Streamlit
+
+•  FastAPI backend with /query, /schema, /history, /health endpoints
+
+•  SQL Explainer, Table Highlighting, Conversational Context, Smart Follow-up Suggestions
+
+•  Dark/Light mode, SSE streaming, Postgres audit log
+
+Phase 3 — Roadmap
+
+•  Multi-user: FastAPI + JWT auth → vLLM under WSL2 for concurrent inference
+
+•  Semantic layer: recurring business metrics defined as SQL views the model references
+
+•  Feedback loop: user-corrected SQL stored as few-shot examples in the retrieval index
+
+•  PWA wrapper for mobile field analyst access
+
+•  Docker Compose packaging for one-command deployment
+
+•  LoRA fine-tuning on accumulated (question, SQL) pairs for domain-specific accuracy improvement
+
+9. Summary
+
+QueryLocal is a planned, fully local, privacy-complete Text-to-SQL web application designed to make natural-language analytics available to business analysts on sensitive datasets — without any data leaving the machine. The project is currently at the planning stage (see Section 8): it is designed as an industry-grade full-stack web application (Next.js + FastAPI), not a prototype notebook or Streamlit script.
+
+The system is distinguished from all existing solutions by three properties held simultaneously: 100% on-premises inference, a production-quality web UI, and a semantic RAG-based schema retrieval pipeline that scales to large databases. The self-correction loop narrows the quality gap between a 7B local model and cloud-hosted GPT-4 without any fine-tuning or cloud dependency.
+
+Seven non-functional requirements — Privacy & Security, Performance, Reliability, Maintainability, Usability, Scalability, and Portability — are formally addressed with measurable targets and verification methods. The first three carry Primary designation and directly address the compliance, latency, and fault-tolerance requirements of enterprise deployments.
+
+Business value is projected across operational efficiency (self-service analytics, 10x faster time-to-insight), risk reduction (data-residency compliance, audit trail, principle of least privilege), and cost savings (zero inference cost versus per-query cloud billing) — to be validated once the system is built and evaluated. The target market is Indian enterprise analytics teams in regulated sectors where cloud NL-SQL is not an option.
+
+10. Product Discovery — How Clients Learn About and Adopt QueryLocal
+
+QueryLocal is not discovered the way a public SaaS product is, since the running application is never on the public internet by design. Awareness and adoption are handled by a public information layer that is entirely separate from the private, on-prem product.
+
+10.1 Public Marketing & Documentation Site
+
+A conventional, publicly hosted website (e.g. on Vercel/GitHub Pages) explains the product and hands over setup instructions. This site never touches client data and carries none of the privacy constraints of the product itself.
+
+•  Landing page — what QueryLocal does, the privacy guarantee, and a demo video/screenshots.
+
+•  Get Started / Docs page — the exact commands to self-host — e.g. git clone, docker compose up, then open http://localhost:3000.
+
+•  Requirements page — hardware and software prerequisites — Docker, a GPU with sufficient VRAM, and access to a PostgreSQL database.
+
+10.2 Distribution Channels
+
+•  Near-term — for portfolio/placement purposes: a GitHub repository with README and demo, and direct discussion in interviews.
+
+•  Longer-term — for real enterprise adoption: direct outreach to data/compliance leaders in regulated sectors (BFSI, healthcare, government), open-sourcing to build community traction, or partnering with data consultancies that deploy it for clients.
+
+In both cases, the pattern mirrors established self-hosted tools such as n8n, Supabase, and Ollama itself: a public website for awareness and setup instructions, with the actual product running privately on each adopter’s own infrastructure.
+
+Nothing — data, results, or schema — ever crosses the machine boundary.
+
+Ollama + Qwen2.5-Coder  ·  sentence-transformers + ChromaDB  ·  sqlglot  ·  PostgreSQL (read-only)  ·  Next.js + FastAPI

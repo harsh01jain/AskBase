@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/__pycache__/
+backend/schema_index/
+
+# Build output
+frontend/.next/
+frontend/out/
+
+# Environment files (contain passwords)
+.env
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker volumes
+pgdata/
+
+# Misc
+*.pyc
+*.pyo
+*.log

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+psycopg2-binary
+sqlglot
+sentence-transformers
+chromadb
+python-dotenv
+requests
+httpx
