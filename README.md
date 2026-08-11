@@ -1,4 +1,4 @@
-# AskBase — Natural Language to SQL
+# AskBase - Natural Language to SQL
 
 Ask questions about your database in plain English. Fully local, privacy-first — no data leaves your machine.
 
