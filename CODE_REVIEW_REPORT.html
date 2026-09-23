@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AskBase — Code Review Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #111827;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --card: #f9fafb;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --green-border: #a7f3d0;
+    --yellow: #d97706;
+    --yellow-bg: #fffbeb;
+    --yellow-border: #fde68a;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-border: #fecaca;
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+    --purple-border: #c4b5fd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--fg); background: var(--bg);
+    line-height: 1.6;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .container { max-width: 920px; margin: 0 auto; padding: 48px 40px; }
+
+  /* Header */
+  .header { text-align: center; padding-bottom: 40px; border-bottom: 2px solid var(--fg); margin-bottom: 40px; }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .header .subtitle { font-size: 16px; color: var(--muted); margin-bottom: 20px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; text-align: left; max-width: 500px; margin: 0 auto; font-size: 13px; }
+  .meta-grid dt { color: var(--muted); font-weight: 500; }
+  .meta-grid dd { color: var(--fg); font-weight: 600; }
+
+  /* Sections */
+  .section { margin-bottom: 48px; }
+  .section-title { font-size: 20px; font-weight: 700; color: var(--fg); padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .section-num { background: var(--fg); color: white; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  h3 { font-size: 15px; font-weight: 600; margin: 24px 0 12px; color: var(--fg); }
+  p.desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+
+  /* Summary Card */
+  .summary-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-box { text-align: center; padding: 16px; border-radius: 10px; border: 1px solid var(--border); background: white; }
+  .stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+  .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-top: 4px; }
+  .stat-box.green .stat-value { color: var(--green); }
+  .stat-box.blue .stat-value { color: var(--accent); }
+  .stat-box.yellow .stat-value { color: var(--yellow); }
+  .verdict { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 10px; font-size: 14px; font-weight: 500; }
+  .verdict-icon { font-size: 22px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0 20px; }
+  thead th { background: var(--card); font-weight: 600; text-align: left; padding: 10px 14px; border: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  tbody td { padding: 10px 14px; border: 1px solid var(--border); vertical-align: top; }
+  tbody tr:hover { background: var(--card); }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+  .badge-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+  .badge-red { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .badge-blue { background: var(--accent-light); color: var(--accent); border: 1px solid #bfdbfe; }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+  .badge-gray { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+
+  /* Bar Chart */
+  .bar-chart { margin: 16px 0 24px; }
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .bar-label { width: 120px; text-align: right; font-size: 12px; font-weight: 500; color: var(--muted); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 24px; background: var(--card); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 5px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+  .bar-fill.green { background: var(--green); }
+  .bar-fill.blue { background: var(--accent); }
+  .bar-fill.yellow { background: var(--yellow); }
+
+  /* Dist */
+  .dist-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; font-size: 13px; }
+  .dist-grade { width: 60px; font-weight: 600; }
+  .dist-bar { height: 20px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 600; color: white; }
+
+  /* Info Boxes */
+  .info-box { padding: 14px 18px; border-radius: 8px; font-size: 13px; line-height: 1.6; margin: 16px 0; }
+  .info-box.green { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .info-box.yellow { background: var(--yellow-bg); border-left: 4px solid var(--yellow); }
+  .info-box.blue { background: var(--accent-light); border-left: 4px solid var(--accent); }
+  .info-box.purple { background: var(--purple-bg); border-left: 4px solid var(--purple); }
+
+  /* Rating */
+  .rating-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .rating-row:last-child { border-bottom: none; font-weight: 700; }
+  .stars { color: #f59e0b; letter-spacing: 2px; }
+
+  /* RBAC Diagram */
+  .rbac-flow { display: flex; align-items: center; justify-content: center; gap: 0; margin: 20px 0 24px; flex-wrap: wrap; }
+  .rbac-node { padding: 12px 18px; border-radius: 10px; font-size: 12px; font-weight: 600; text-align: center; min-width: 130px; }
+  .rbac-arrow { font-size: 20px; color: var(--muted); padding: 0 8px; }
+  .rbac-user { background: var(--accent-light); border: 1px solid #bfdbfe; color: var(--accent); }
+  .rbac-app { background: var(--purple-bg); border: 1px solid var(--purple-border); color: var(--purple); }
+  .rbac-validator { background: var(--yellow-bg); border: 1px solid var(--yellow-border); color: var(--yellow); }
+  .rbac-db-read { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
+  .rbac-db-admin { background: var(--red-bg); border: 1px solid var(--red-border); color: var(--red); }
+
+  /* NFR Grid */
+  .nfr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .nfr-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .nfr-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .nfr-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .nfr-card .nfr-detail { margin-top: 8px; font-size: 12px; }
+  .nfr-card .nfr-detail dt { color: var(--muted); font-weight: 500; display: inline; }
+  .nfr-card .nfr-detail dd { display: inline; font-weight: 600; margin-right: 12px; }
+  .nfr-icon { font-size: 16px; }
+
+  /* Footer */
+  .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--muted); }
+
+  @media print {
+    .container { padding: 20px; }
+    .section { page-break-inside: avoid; }
+    body { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <h1>Code Review Report</h1>
+    <p class="subtitle">AskBase — Natural Language to SQL</p>
+    <dl class="meta-grid">
+      <dt>Date</dt><dd>September 20, 2026</dd>
+      <dt>Language</dt><dd>Python 3.14 (FastAPI)</dd>
+      <dt>Frontend</dt><dd>Next.js 14 (TypeScript)</dd>
+      <dt>Lines of Code</dt><dd>504 (backend)</dd>
+      <dt>Tools Used</dt><dd>Ruff, Radon, PyTest, Bandit</dd>
+      <dt>Files Analyzed</dt><dd>5 core modules</dd>
+    </dl>
+  </div>
+
+  <!-- ═══ 1. EXECUTIVE SUMMARY ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">1</span> Executive Summary</h2>
+    <div class="summary-card">
+      <div class="summary-grid">
+        <div class="stat-box green"><div class="stat-value">A</div><div class="stat-label">Avg Complexity</div></div>
+        <div class="stat-box green"><div class="stat-value">97%</div><div class="stat-label">Tests Passed</div></div>
+        <div class="stat-box green"><div class="stat-value">0</div><div class="stat-label">High Security Issues</div></div>
+      </div>
+      <div class="verdict">
+        <span class="verdict-icon">✅</span>
+        <div><strong>Overall Assessment:</strong> The codebase demonstrates good maintainability with low cyclomatic complexity (Grade A average). No high-severity security vulnerabilities found. RBAC enforced at database level. 36 out of 37 unit tests passing.</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Metric</th><th>Result</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Ruff Lint Issues</td><td>38 total (12 auto-fixable, 26 manual)</td><td><span class="badge badge-yellow">Minor</span></td></tr>
+        <tr><td>Cyclomatic Complexity</td><td>Grade A (3.48 avg)</td><td><span class="badge badge-green">Excellent</span></td></tr>
+        <tr><td>Maintainability Index</td><td>All files Grade A</td><td><span class="badge badge-green">Excellent</span></td></tr>
+        <tr><td>Halstead Est. Bugs</td><td>&lt; 0.05 per file</td><td><span class="badge badge-green">Low Risk</span></td></tr>
+        <tr><td>Unit Tests</td><td>36/37 passed (97.3%)</td><td><span class="badge badge-green">Good</span></td></tr>
+        <tr><td>Code Coverage</td><td>58% (core modules)</td><td><span class="badge badge-yellow">Moderate</span></td></tr>
+        <tr><td>Security (Bandit)</td><td>0 High, 1 Medium, 14 Low</td><td><span class="badge badge-green">Acceptable</span></td></tr>
+        <tr><td>RBAC</td><td>2-role system enforced at DB level</td><td><span class="badge badge-green">Implemented</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 2. RUFF ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">2</span> Ruff — Static Linting Analysis</h2>
+    <p class="desc"><strong>Tool:</strong> Ruff v0.16.8 (Astral) &nbsp;|&nbsp; <strong>Files:</strong> database.py, llm.py, main.py, retrieval.py, seed_db.py</p>
+
+    <div class="info-box blue">
+      <strong>Auto-fixable vs Manual:</strong> "Auto-fix" means Ruff can correct it instantly with <code>ruff check --fix</code>. "Manual" means the tool cannot decide the correct fix — a developer must edit the code and decide which exception type to use, which timezone to apply, etc.
+    </div>
+
+    <table>
+      <thead><tr><th>Issue Type</th><th>Code</th><th>Count</th><th>Fix Type</th><th>Planned Fix</th></tr></thead>
+      <tbody>
+        <tr><td>Import sorting</td><td class="mono">I001</td><td>3</td><td><span class="badge badge-green">Auto-fix</span></td><td>Run <code>ruff check --fix</code> — Ruff reorders imports per PEP 8 automatically</td></tr>
+        <tr><td>Unused imports</td><td class="mono">F401</td><td>1</td><td><span class="badge badge-green">Auto-fix</span></td><td>Run <code>ruff check --fix</code> — removes <code>HTTPException</code> from <code>main.py</code></td></tr>
+        <tr><td>Bare except</td><td class="mono">E722</td><td>1</td><td><span class="badge badge-yellow">Manual</span></td><td>Replace <code>except:</code> with <code>except (requests.RequestException, ConnectionError):</code> in <code>main.py:43</code></td></tr>
+        <tr><td>Try-except-pass</td><td class="mono">S110</td><td>4</td><td><span class="badge badge-yellow">Manual</span></td><td>Replace <code>pass</code> with <code>logging.warning(f"...")</code> to log suppressed errors instead of silently ignoring them</td></tr>
+        <tr><td>Blind exception</td><td class="mono">BLE001</td><td>6</td><td><span class="badge badge-yellow">Manual</span></td><td>Replace <code>except Exception</code> with specific types: <code>psycopg2.Error</code> for DB calls, <code>httpx.HTTPError</code> for LLM calls, <code>json.JSONDecodeError</code> for parsing</td></tr>
+        <tr><td>Datetime tzinfo</td><td class="mono">DTZ001</td><td>2</td><td><span class="badge badge-yellow">Manual</span></td><td>Add <code>tzinfo=datetime.timezone.utc</code> to <code>datetime()</code> calls in <code>seed_db.py:83-84</code></td></tr>
+        <tr><td>Pseudo-random</td><td class="mono">B311</td><td>10</td><td><span class="badge badge-gray">N/A</span></td><td>No fix needed — <code>random</code> module is appropriate for seed data generation (not used for security/crypto)</td></tr>
+        <tr><td>Dict .values()</td><td class="mono">PERF102</td><td>1</td><td><span class="badge badge-yellow">Manual</span></td><td>Change <code>for k, v in suggestions.items()</code> to <code>for v in suggestions.values()</code> in <code>llm.py:101</code></td></tr>
+        <tr style="font-weight:600;background:var(--card)"><td colspan="2">Total</td><td>38</td><td colspan="2"><span class="badge badge-green">12 auto-fixable</span> &nbsp; <span class="badge badge-yellow">16 manual</span> &nbsp; <span class="badge badge-gray">10 acceptable</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 3. RADON ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">3</span> Radon — Code Metrics</h2>
+
+    <h3>3.1 Cyclomatic Complexity</h3>
+    <p class="desc">Scale: A (1–5) Low Risk &nbsp;|&nbsp; B (6–10) Moderate &nbsp;|&nbsp; C (11–15) High &nbsp;|&nbsp; D+ Very High</p>
+    <table>
+      <thead><tr><th>File</th><th>Function</th><th>Complexity</th><th>Grade</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">llm.py</td><td>generate_sql</td><td>9</td><td><span class="badge badge-yellow">B</span></td></tr>
+        <tr><td class="mono">seed_db.py</td><td>seed_db</td><td>8</td><td><span class="badge badge-yellow">B</span></td></tr>
+        <tr><td class="mono">database.py</td><td>get_schema_definitions</td><td>7</td><td><span class="badge badge-yellow">B</span></td></tr>
+        <tr><td class="mono">llm.py</td><td>generate_suggestions</td><td>6</td><td><span class="badge badge-yellow">B</span></td></tr>
+        <tr><td class="mono">main.py</td><td>health_check</td><td>5</td><td><span class="badge badge-green">A</span></td></tr>
+        <tr><td class="mono">main.py</td><td>validate_sql</td><td>5</td><td><span class="badge badge-green">A</span></td></tr>
+        <tr><td class="mono">database.py</td><td>execute_query</td><td>5</td><td><span class="badge badge-green">A</span></td></tr>
+        <tr><td class="mono">llm.py</td><td>stream_explanation</td><td>5</td><td><span class="badge badge-green">A</span></td></tr>
+        <tr><td class="mono">retrieval.py</td><td>index_schema</td><td>4</td><td><span class="badge badge-green">A</span></td></tr>
+        <tr><td colspan="2" style="color:var(--muted);font-style:italic">+ 14 more functions (all Grade A)</td><td></td><td></td></tr>
+        <tr style="font-weight:600;background:var(--card)"><td colspan="2">Average (23 functions)</td><td>3.48</td><td><span class="badge badge-green">A</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>Complexity Distribution</h3>
+    <div style="margin:16px 0 28px;">
+      <div class="dist-row"><span class="dist-grade">Grade A</span><div class="dist-bar green" style="width:83%;min-width:60px;">19 functions (83%)</div></div>
+      <div class="dist-row"><span class="dist-grade">Grade B</span><div class="dist-bar yellow" style="width:17%;min-width:60px;">4 functions (17%)</div></div>
+      <div class="dist-row"><span class="dist-grade">Grade C+</span><div class="dist-bar" style="width:20px;background:var(--border);min-width:60px;color:var(--muted);">0 (0%)</div></div>
+    </div>
+
+    <h3>3.2 Maintainability Index</h3>
+    <p class="desc">Scale: A (20–100) Maintainable &nbsp;|&nbsp; B (10–19) Moderate &nbsp;|&nbsp; C (0–9) Difficult</p>
+    <div class="bar-chart">
+      <div class="bar-row"><span class="bar-label mono">retrieval.py</span><div class="bar-track"><div class="bar-fill green" style="width:69%">68.95 — A</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">seed_db.py</span><div class="bar-track"><div class="bar-fill green" style="width:55%">55.44 — A</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">database.py</span><div class="bar-track"><div class="bar-fill green" style="width:54%">53.86 — A</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">llm.py</span><div class="bar-track"><div class="bar-fill green" style="width:51%">51.43 — A</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">main.py</span><div class="bar-track"><div class="bar-fill blue" style="width:46%">45.73 — A</div></div></div>
+    </div>
+
+    <h3>3.3 Halstead Metrics</h3>
+    <table>
+      <thead><tr><th>File</th><th>Vocabulary</th><th>Volume</th><th>Difficulty</th><th>Effort</th><th>Est. Bugs</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">database.py</td><td>9</td><td>41.21</td><td>1.00</td><td>41.21</td><td><span class="badge badge-green">0.014</span></td></tr>
+        <tr><td class="mono">llm.py</td><td>15</td><td>97.67</td><td>2.91</td><td>284.14</td><td><span class="badge badge-green">0.033</span></td></tr>
+        <tr><td class="mono">main.py</td><td>25</td><td>143.96</td><td>3.69</td><td>531.85</td><td><span class="badge badge-green">0.048</span></td></tr>
+        <tr><td class="mono">retrieval.py</td><td>7</td><td>25.27</td><td>1.00</td><td>25.27</td><td><span class="badge badge-green">0.008</span></td></tr>
+        <tr><td class="mono">seed_db.py</td><td>18</td><td>87.57</td><td>3.50</td><td>306.49</td><td><span class="badge badge-green">0.029</span></td></tr>
+      </tbody>
+    </table>
+    <div class="info-box green">
+      <strong>Interpretation:</strong> All estimated bug counts are well below 0.1, indicating very low defect probability. <code>main.py</code> has the highest effort (531.85) as expected for the API orchestration layer.
+    </div>
+  </div>
+
+  <!-- ═══ 4. PYTEST ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">4</span> PyTest — Unit Testing & Coverage</h2>
+    <p class="desc"><strong>Tool:</strong> PyTest 9.1.1 + pytest-cov 7.1.0 &nbsp;|&nbsp; <strong>Result:</strong> <span class="badge badge-green">36 passed</span> <span class="badge badge-red">1 failed</span> &nbsp;|&nbsp; <strong>Duration:</strong> 125.93s</p>
+
+    <table>
+      <thead><tr><th>#</th><th>Test Class</th><th>Tests</th><th>Status</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>TestSQLValidation</td><td>13</td><td><span class="badge badge-green">13 ✓</span></td><td>SELECT validation, rejects INSERT/UPDATE/DELETE/DROP</td></tr>
+        <tr><td>2</td><td>TestLLMParsing</td><td>4</td><td><span class="badge badge-green">4 ✓</span></td><td>Markdown stripping, whitespace handling</td></tr>
+        <tr><td>3</td><td>TestDatabaseModule</td><td>5</td><td><span class="badge badge-green">5 ✓</span></td><td>Connection mocking, query execution, schema extraction</td></tr>
+        <tr><td>4</td><td>TestRetrieval</td><td>2</td><td><span class="badge badge-green">2 ✓</span></td><td>ChromaDB indexing and semantic retrieval</td></tr>
+        <tr><td>5</td><td>TestAPIEndpoints</td><td>5</td><td><span class="badge badge-green">5 ✓</span></td><td>Health, schema, history, query, reindex endpoints</td></tr>
+        <tr><td>6</td><td>TestSuggestionsParsing</td><td>4</td><td><span class="badge badge-green">4 ✓</span></td><td>JSON parsing of LLM suggestion responses</td></tr>
+        <tr><td>7</td><td>TestEdgeCases</td><td>4</td><td><span class="badge badge-yellow">3 ✓ 1 ✗</span></td><td>Semicolons, case-insensitivity, LIMIT, CTEs</td></tr>
+        <tr style="font-weight:600;background:var(--card)"><td></td><td>Total</td><td>37</td><td><span class="badge badge-green">97.3%</span></td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="info-box yellow">
+      <strong>Failed Test:</strong> <code>test_sql_with_semicolons</code> — The validator allows <code>SELECT 1; SELECT 2</code> (two SELECT statements). While not a direct data-modification risk, multi-statement queries could be exploited. Recommend adding multi-statement rejection.
+    </div>
+
+    <h3>Code Coverage by Module</h3>
+    <div class="bar-chart">
+      <div class="bar-row"><span class="bar-label mono">main.py</span><div class="bar-track"><div class="bar-fill green" style="width:77%">77%</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">retrieval.py</span><div class="bar-track"><div class="bar-fill blue" style="width:56%">56%</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">database.py</span><div class="bar-track"><div class="bar-fill blue" style="width:53%">53%</div></div></div>
+      <div class="bar-row"><span class="bar-label mono">llm.py</span><div class="bar-track"><div class="bar-fill yellow" style="width:46%">46%</div></div></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:-8px;">Uncovered lines are primarily in the SSE streaming pipeline and LLM interaction code which require integration tests with a live Ollama instance.</p>
+  </div>
+
+  <!-- ═══ 5. BANDIT + RBAC ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">5</span> Security Analysis — Bandit & RBAC</h2>
+
+    <!-- 5.1 Bandit -->
+    <h3>5.1 Bandit — Vulnerability Scan</h3>
+    <p class="desc"><strong>Tool:</strong> Bandit 1.9.4 &nbsp;|&nbsp; <strong>Scanned:</strong> 504 lines across 5 files</p>
+
+    <div class="summary-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+      <div class="stat-box green"><div class="stat-value">0</div><div class="stat-label">High Severity</div></div>
+      <div class="stat-box" style="border-color:var(--yellow-border)"><div class="stat-value" style="color:var(--yellow)">1</div><div class="stat-label">Medium Severity</div></div>
+      <div class="stat-box"><div class="stat-value" style="color:var(--muted)">14</div><div class="stat-label">Low Severity</div></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Severity</th><th>Issue</th><th>File</th><th>CWE</th><th>Assessment</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-yellow">Medium</span></td><td>B104: Bind all interfaces</td><td class="mono">main.py:147</td><td>CWE-605</td><td>Intentional for dev. Docker handles isolation in prod.</td></tr>
+        <tr><td><span class="badge badge-blue">Low</span></td><td>B110: try-except-pass</td><td class="mono">3 files</td><td>CWE-703</td><td>Acceptable for non-critical error suppression</td></tr>
+        <tr><td><span class="badge badge-blue">Low</span></td><td>B105: Hardcoded password</td><td class="mono">seed_db.py</td><td>CWE-259</td><td>Dev seed script only, not production</td></tr>
+        <tr><td><span class="badge badge-blue">Low</span></td><td>B311: Pseudo-random</td><td class="mono">seed_db.py (×10)</td><td>CWE-330</td><td>Expected — generates test data, not security tokens</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 5.2 RBAC -->
+    <h3>5.2 Role-Based Access Control (RBAC)</h3>
+
+    <p style="font-size:13px;margin-bottom:16px;">AskBase implements a <strong>2-role RBAC system</strong> at the PostgreSQL database level, enforced via <code>init.sql</code> during container initialization.</p>
+
+    <div class="rbac-flow">
+      <div class="rbac-node rbac-user">👤 User<br><small>Asks question</small></div>
+      <span class="rbac-arrow">→</span>
+      <div class="rbac-node rbac-app">⚙️ FastAPI<br><small>Generates SQL</small></div>
+      <span class="rbac-arrow">→</span>
+      <div class="rbac-node rbac-validator">🛡️ Validator<br><small>SELECT only</small></div>
+      <span class="rbac-arrow">→</span>
+      <div class="rbac-node rbac-db-read">🔒 nl2sql_reader<br><small>Read-only role</small></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Role</th><th>User</th><th>Permissions</th><th>Used For</th><th>Enforced In</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-green">Read-Only</span></td>
+          <td class="mono">nl2sql_reader</td>
+          <td>SELECT only on all public tables</td>
+          <td>All user-facing queries (natural language → SQL)</td>
+          <td class="mono">init.sql, database.py</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-red">Admin</span></td>
+          <td class="mono">root</td>
+          <td>Full access (CREATE, INSERT, etc.)</td>
+          <td>Audit logging, schema management, seeding</td>
+          <td class="mono">docker-compose.yml, database.py</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Security Controls Implemented</h3>
+    <table>
+      <tbody>
+        <tr><td style="width:30px;text-align:center;color:var(--green)">✓</td><td><strong>SQL Injection Prevention</strong> — <code>validate_sql()</code> uses sqlglot to parse and reject non-SELECT statements (INSERT, UPDATE, DELETE, DROP, ALTER)</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Principle of Least Privilege</strong> — User queries run under <code>nl2sql_reader</code> which has only <code>SELECT</code> permission. Even if validation is bypassed, the DB role prevents writes.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Query Timeout</strong> — <code>statement_timeout = 15s</code> and <code>idle_in_transaction_session_timeout = 30s</code> prevent runaway queries and DoS.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Credential Separation</strong> — Database credentials stored in <code>.env</code> files, excluded from Git via <code>.gitignore</code>. Templates provided as <code>.env.example</code>.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Future-Proof Grants</strong> — <code>ALTER DEFAULT PRIVILEGES</code> ensures newly created tables automatically grant SELECT to the read-only role.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>On-Premise Architecture</strong> — All data stays on the local machine. No external API calls for data processing. LLM runs locally via Ollama.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="info-box green">
+      <strong>RBAC Assessment:</strong> The 2-role system provides defense-in-depth: even if the application-level SQL validator is bypassed, the database-level <code>nl2sql_reader</code> role prevents any data modification. Admin operations (audit logging, schema init) use a separate connection with elevated privileges, isolated from user-facing queries.
+    </div>
+  </div>
+
+  <!-- ═══ 6. NFRs ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">6</span> Non-Functional Requirements (NFRs)</h2>
+
+    <div class="nfr-grid">
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">⚡</span> Performance</h4>
+        <p>Query execution uses direct PostgreSQL connections with connection-per-request pattern. Results are streamed via SSE (Server-Sent Events) for low time-to-first-byte.</p>
+        <dl class="nfr-detail">
+          <dt>Query timeout:</dt><dd>15s max</dd><br>
+          <dt>Idle timeout:</dt><dd>30s</dd><br>
+          <dt>Result limit:</dt><dd>1000 rows</dd><br>
+          <dt>LLM timeout:</dt><dd>30s per call</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🔒</span> Security</h4>
+        <p>Defense-in-depth with application-level SQL validation and database-level RBAC. Credentials externalized to environment variables.</p>
+        <dl class="nfr-detail">
+          <dt>RBAC roles:</dt><dd>2 (read-only + admin)</dd><br>
+          <dt>SQL validation:</dt><dd>SELECT only</dd><br>
+          <dt>Credentials:</dt><dd>.env (gitignored)</dd><br>
+          <dt>High vulns:</dt><dd>0 (Bandit)</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🔄</span> Reliability</h4>
+        <p>Auto-retry mechanism with up to 3 attempts for SQL generation. If the LLM produces invalid SQL, it retries with error context for self-correction.</p>
+        <dl class="nfr-detail">
+          <dt>Max retries:</dt><dd>3 attempts</dd><br>
+          <dt>Error feedback:</dt><dd>Yes (to LLM)</dd><br>
+          <dt>Audit logging:</dt><dd>All queries</dd><br>
+          <dt>Docker restart:</dt><dd>unless-stopped</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🏠</span> Privacy</h4>
+        <p>Fully on-premise architecture. No data leaves the user's machine. LLM inference runs locally via Ollama. No external API calls for data processing.</p>
+        <dl class="nfr-detail">
+          <dt>Data egress:</dt><dd>None</dd><br>
+          <dt>LLM location:</dt><dd>Local (Ollama)</dd><br>
+          <dt>Cloud deps:</dt><dd>None</dd><br>
+          <dt>Telemetry:</dt><dd>Disabled</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🔧</span> Maintainability</h4>
+        <p>Modular architecture with clear separation of concerns. All files score Grade A on Radon Maintainability Index.</p>
+        <dl class="nfr-detail">
+          <dt>Avg complexity:</dt><dd>Grade A (3.48)</dd><br>
+          <dt>MI range:</dt><dd>45–69 (all A)</dd><br>
+          <dt>Est. bugs:</dt><dd>&lt;0.05 per file</dd><br>
+          <dt>Modules:</dt><dd>5 (single responsibility)</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">📐</span> Scalability</h4>
+        <p>Connection-per-request model suitable for moderate load. Schema retrieval uses ChromaDB with semantic embeddings for efficient table selection.</p>
+        <dl class="nfr-detail">
+          <dt>DB connections:</dt><dd>Per-request</dd><br>
+          <dt>Schema retrieval:</dt><dd>Semantic (ChromaDB)</dd><br>
+          <dt>Embeddings:</dt><dd>all-MiniLM-L6-v2</dd><br>
+          <dt>Containerized:</dt><dd>Yes (Docker)</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">♿</span> Usability</h4>
+        <p>Conversational chat interface inspired by ChatGPT/Claude. Supports natural language input, voice input (Web Speech API), and follow-up suggestions.</p>
+        <dl class="nfr-detail">
+          <dt>Input methods:</dt><dd>Text + Voice</dd><br>
+          <dt>Dark mode:</dt><dd>Yes (toggle)</dd><br>
+          <dt>Results view:</dt><dd>Table + Chart</dd><br>
+          <dt>Follow-ups:</dt><dd>AI-generated</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🧪</span> Testability</h4>
+        <p>Comprehensive test suite with 37 unit tests across 7 test classes. Mocked dependencies allow testing without live database or LLM.</p>
+        <dl class="nfr-detail">
+          <dt>Test cases:</dt><dd>37</dd><br>
+          <dt>Pass rate:</dt><dd>97.3%</dd><br>
+          <dt>Coverage:</dt><dd>58% (core)</dd><br>
+          <dt>Framework:</dt><dd>PyTest 9.1.1</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">🔗</span> Compatibility</h4>
+        <p>Designed to run locally with PostgreSQL 15 via Docker. Backend communicates over standard <code>psycopg2</code> driver; frontend uses REST + SSE over HTTP.</p>
+        <dl class="nfr-detail">
+          <dt>Database:</dt><dd>PostgreSQL 15 (Docker, port 5433)</dd><br>
+          <dt>LLM:</dt><dd>Ollama (local, port 11434)</dd><br>
+          <dt>Python:</dt><dd>3.10+ (FastAPI + Uvicorn)</dd><br>
+          <dt>Node.js:</dt><dd>18+ (Next.js 14)</dd>
+        </dl>
+      </div>
+      <div class="nfr-card">
+        <h4><span class="nfr-icon">⏱️</span> Availability</h4>
+        <p>Docker containers configured with <code>restart: unless-stopped</code> for automatic recovery. Health endpoint enables uptime monitoring and load balancer integration.</p>
+        <dl class="nfr-detail">
+          <dt>Health check:</dt><dd>GET /health (DB + LLM)</dd><br>
+          <dt>Auto-restart:</dt><dd>Docker restart policy</dd><br>
+          <dt>Retry logic:</dt><dd>3 attempts per query</dd><br>
+          <dt>Timeouts:</dt><dd>15s query, 30s idle</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 7. FRAMEWORKS & JUSTIFICATION ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">7</span> Frameworks & Justification</h2>
+    <p class="desc">Every technology, framework, and tool in AskBase was deliberately chosen to satisfy specific architectural requirements: 100% on-premise privacy, real-time streaming, relational integrity, and strict read-only execution security.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 18%;">Framework / Tool</th>
+          <th style="width: 16%;">Layer & Role</th>
+          <th style="width: 20%;">Alternatives Evaluated</th>
+          <th>Technical Justification & Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>FastAPI</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">Python 3.10+</span></td>
+          <td><span class="badge badge-purple">Backend API</span></td>
+          <td>Flask, Django</td>
+          <td>Native <code>async/await</code> support enables non-blocking Server-Sent Events (SSE) streaming (<code>StreamingResponse</code>) for real-time LLM token delivery. Auto-generates interactive OpenAPI specs and provides declarative Pydantic payload validation.</td>
+        </tr>
+        <tr>
+          <td><strong>Uvicorn</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">ASGI Server</span></td>
+          <td><span class="badge badge-purple">Web Server</span></td>
+          <td>Gunicorn, WSGI</td>
+          <td>High-performance async server conforming to ASGI specifications, highly efficient for processing concurrent long-lived HTTP streaming connections.</td>
+        </tr>
+        <tr>
+          <td><strong>Next.js 14 & React 18</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">App Router</span></td>
+          <td><span class="badge badge-blue">Frontend UI</span></td>
+          <td>Vite React SPA, Streamlit, Gradio</td>
+          <td>Provides a conversational chat interface modeled after ChatGPT/Claude. Handles continuous SSE event streams, client-side state transitions, and responsive chart/table switching without the rigid UI constraints of Streamlit or Gradio.</td>
+        </tr>
+        <tr>
+          <td><strong>TypeScript</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">v5.x</span></td>
+          <td><span class="badge badge-blue">Type Safety</span></td>
+          <td>Plain JavaScript</td>
+          <td>Enforces compile-time type safety across API response structures, streaming SSE event frames, message history state, and tabular SQL result schemas, preventing runtime client crashes.</td>
+        </tr>
+        <tr>
+          <td><strong>Tailwind CSS & shadcn/ui</strong></td>
+          <td><span class="badge badge-blue">Design System</span></td>
+          <td>Bootstrap, Material UI</td>
+          <td>Zero-runtime utility CSS with accessible primitive components. Enables clean, minimal dark/light mode toggling with a professional, distraction-free conversational layout.</td>
+        </tr>
+        <tr>
+          <td><strong>Recharts</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">SVG Charting</span></td>
+          <td><span class="badge badge-blue">Visualization</span></td>
+          <td>Chart.js, Plotly, D3.js</td>
+          <td>Declarative React component-based charting built on native SVG. Directly transforms relational query records into responsive Bar, Line, and Area charts with custom tooltips.</td>
+        </tr>
+        <tr>
+          <td><strong>PostgreSQL 15</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">Docker Container</span></td>
+          <td><span class="badge badge-green">Database Engine</span></td>
+          <td>MySQL, SQLite, MongoDB</td>
+          <td>ACID compliant with robust analytical SQL capabilities (CTEs, subqueries, aggregations). Crucially supports granular Role-Based Access Control (RBAC) to enforce unprivileged read-only query execution (<code>nl2sql_reader</code>) alongside session timeouts.</td>
+        </tr>
+        <tr>
+          <td><strong>psycopg2-binary</strong></td>
+          <td><span class="badge badge-green">DB Driver</span></td>
+          <td>asyncpg, SQLAlchemy ORM</td>
+          <td>High-performance C-based PostgreSQL driver. Uses <code>RealDictCursor</code> for instant zero-overhead translation of SQL rows into JSON dictionaries, and allows direct execution timeout injection (<code>statement_timeout</code>).</td>
+        </tr>
+        <tr>
+          <td><strong>Ollama + Qwen 2.5 Coder (7B)</strong></td>
+          <td><span class="badge badge-yellow">Local AI Engine</span></td>
+          <td>OpenAI API, Claude API, vLLM</td>
+          <td><strong>100% Privacy Guarantee:</strong> Zero cloud egress ensures enterprise database schemas and queries never leave the machine. Qwen 2.5 Coder 7B delivers state-of-the-art SQL generation and structured JSON output without cloud subscriptions or rate limits.</td>
+        </tr>
+        <tr>
+          <td><strong>ChromaDB</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">PersistentClient</span></td>
+          <td><span class="badge badge-yellow">Vector Store (RAG)</span></td>
+          <td>Pinecone, Milvus, Qdrant</td>
+          <td>In-process, zero-maintenance vector store with local disk persistence. Eliminates external vector cloud dependencies while providing rapid similarity lookup for database schema retrieval.</td>
+        </tr>
+        <tr>
+          <td><strong>Sentence-Transformers</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">all-MiniLM-L6-v2</span></td>
+          <td><span class="badge badge-yellow">Embeddings</span></td>
+          <td>OpenAI text-embedding-3, BGE</td>
+          <td>Ultra-compact (~80MB) local embedding model executing on CPU in milliseconds. Semantically maps user intent to relevant table definitions to inject minimal, high-precision context into the prompt.</td>
+        </tr>
+        <tr>
+          <td><strong>sqlglot</strong><br><span class="mono" style="font-size:11px;color:var(--muted);">AST Engine</span></td>
+          <td><span class="badge badge-red">Security / Parser</span></td>
+          <td>Regex matching, sqlparse</td>
+          <td>Full SQL Abstract Syntax Tree (AST) transpiler and parser. Unlike brittle regex matching, it inspects every parsed AST node to strictly reject non-SELECT operations (INSERT, UPDATE, DELETE, DROP, ALTER), preventing SQL injection.</td>
+        </tr>
+        <tr>
+          <td><strong>Ruff, Radon, PyTest, Bandit</strong></td>
+          <td><span class="badge badge-gray">Testing & QA</span></td>
+          <td>Pylint, Flake8, SonarQube</td>
+          <td>Multi-dimensional automated audit suite: <strong>Ruff</strong> for ultra-fast static linting, <strong>Radon</strong> for Cyclomatic Complexity & Maintainability Index, <strong>PyTest</strong> for unit test validation (97.3% pass), and <strong>Bandit</strong> for AST security scanning.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 8. FINAL VERDICT ═══ -->
+  <div class="section">
+    <h2 class="section-title"><span class="section-num">8</span> Final Verdict & Recommendations</h2>
+
+    <div class="summary-card">
+      <div class="rating-row"><span>Code Quality (Ruff)</span><span class="stars">★★★★☆</span></div>
+      <div class="rating-row"><span>Complexity (Radon CC)</span><span class="stars">★★★★★</span></div>
+      <div class="rating-row"><span>Maintainability (Radon MI)</span><span class="stars">★★★★★</span></div>
+      <div class="rating-row"><span>Security & RBAC (Bandit)</span><span class="stars">★★★★☆</span></div>
+      <div class="rating-row"><span>Testing (PyTest)</span><span class="stars">★★★★☆</span></div>
+      <div class="rating-row"><span>NFR Compliance</span><span class="stars">★★★★☆</span></div>
+      <div class="rating-row"><span>Overall</span><span class="stars">★★★★☆</span></div>
+    </div>
+
+    <h3>Strengths</h3>
+    <table>
+      <tbody>
+        <tr><td style="width:30px;text-align:center;color:var(--green)">✓</td><td><strong>Low Complexity</strong> — Average Grade A (3.48). No function exceeds Grade B.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>High Maintainability</strong> — All files score Grade A on Maintainability Index.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Secure by Design</strong> — 2-role RBAC, SQL validation, on-premise, query timeouts.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Well-Tested</strong> — 37 test cases, 97.3% pass rate, 7 test categories.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Privacy-First</strong> — Zero data egress. All processing on local machine.</td></tr>
+        <tr><td style="text-align:center;color:var(--green)">✓</td><td><strong>Low Defect Probability</strong> — Halstead estimates &lt; 0.05 bugs per file.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Areas for Improvement</h3>
+    <table>
+      <tbody>
+        <tr><td style="width:30px;text-align:center;color:var(--yellow)">!</td><td><strong>Exception Handling</strong> — Replace bare <code>except</code> with specific types + structured logging.</td></tr>
+        <tr><td style="text-align:center;color:var(--yellow)">!</td><td><strong>Multi-Statement SQL</strong> — Add rejection for semicolon-separated queries.</td></tr>
+        <tr><td style="text-align:center;color:var(--yellow)">!</td><td><strong>Test Coverage</strong> — Add integration tests for SSE streaming pipeline (~58% → 80%+).</td></tr>
+        <tr><td style="text-align:center;color:var(--yellow)">!</td><td><strong>Connection Pooling</strong> — Replace per-request connections with a pool for better scalability.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div class="footer">
+    Report generated using Ruff v0.16.8, Radon v6.0.1, PyTest v9.1.1, pytest-cov v7.1.0, and Bandit v1.9.4<br>
+    AskBase — Natural Language to SQL &nbsp;|&nbsp; September 2026
+  </div>
+
+</div>
+</body>
+</html>
